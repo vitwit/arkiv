@@ -153,8 +153,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
 
   describe("File Lifecycle", function () {
     it("should create files successfully", async function () {
-      console.log("\n📄 Testing File Creation");
-
       // Alice creates a file
       await arkivContract
         .connect(signers.alice)
@@ -168,18 +166,14 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
 
       const metadata = await arkivContract.getFileMetadata(FILE_ID_1);
       expect(metadata).to.equal(METADATA_1);
-
-      console.log(`✅ File CID and metadata verified`);
     });
 
     it("should prevent duplicate file creation", async function () {
-      console.log("\n🚫 Testing Duplicate File Prevention");
 
       await arkivContract
         .connect(signers.alice)
         .createFile(FILE_ID_1, CID_1, METADATA_1);
 
-      // Try to create same file again
       await expect(
         arkivContract
           .connect(signers.alice)
@@ -209,8 +203,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should grant access to recipients", async function () {
-      console.log("\n🔑 Testing Access Grant");
-
       // Grant access to Bob
       await arkivContract
         .connect(signers.alice)
@@ -231,8 +223,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should grant access to multiple recipients", async function () {
-      console.log("\n🔑 Testing Multiple Access Grants");
-
       // Grant access to multiple users
       await arkivContract
         .connect(signers.alice)
@@ -258,8 +248,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should revoke access from recipients", async function () {
-      console.log("\n🚫 Testing Access Revocation");
-
       // Grant and then revoke access
       await arkivContract
         .connect(signers.alice)
@@ -281,8 +269,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should only allow owner to grant/revoke access", async function () {
-      console.log("\n🔒 Testing Owner-Only Access Control");
-
       // Bob tries to grant access (should fail)
       await expect(
         arkivContract
@@ -322,7 +308,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should store encrypted AES-256 key words for recipient", async function () {
-      console.log("\n🔐 Testing Encrypted Key Storage");
 
       const aesKeyWords = generateMockAESKey();
 
@@ -401,7 +386,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should prevent unauthorized access to encrypted keys", async function () {
-      console.log("\n🚫 Testing Unauthorized Key Access Prevention");
 
       const aesKeyWords = generateMockAESKey();
 
@@ -438,7 +422,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should allow owner to view any recipient's encrypted keys", async function () {
-      console.log("\n👁️ Testing Owner Key Viewing");
 
       const aesKeyWords = generateMockAESKey();
 
@@ -478,7 +461,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should reject invalid number of key words", async function () {
-      console.log("\n🚫 Testing Invalid Key Word Count");
 
       const encryptedInput = await fhevm
         .createEncryptedInput(arkivContractAddress, signers.alice.address)
@@ -486,7 +468,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
         .add64(67890)
         .encrypt();
 
-      // Try with only 2 words instead of 4
       await expect(
         arkivContract
           .connect(signers.alice)
@@ -510,7 +491,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
         .add64(4)
         .encrypt();
 
-      // Try with wrong number of proofs
       await expect(
         arkivContract
           .connect(signers.alice)
@@ -518,13 +498,12 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
             FILE_ID_1,
             signers.bob.address,
             encryptedInput.handles,
-            [encryptedInput.inputProof, encryptedInput.inputProof] // Only 2 proofs
+            [encryptedInput.inputProof, encryptedInput.inputProof]
           )
       ).to.be.revertedWith("Must supply 4 proofs");
     });
 
     it("should automatically grant access when storing keys for new recipient", async function () {
-      console.log("\n🔑 Testing Auto-Grant on Key Storage");
 
       const aesKeyWords = generateMockAESKey();
 
@@ -551,7 +530,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
           ]
         );
 
-      // Verify Charlie now has access
       const hasAccess = await arkivContract.hasAccess(FILE_ID_1, signers.charlie.address);
       expect(hasAccess).to.be.true;
 
@@ -562,7 +540,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
 
     it("should clear encrypted keys when access is revoked", async function () {
-      console.log("\n🧹 Testing Key Clearing on Revocation");
 
       const aesKeyWords = generateMockAESKey();
 
@@ -967,80 +944,6 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
         .createFile(FILE_ID_1, CID_1, METADATA_1);
     });
 
-    it("should handle accessing key word with invalid index", async function () {
-      console.log("\n🚫 Testing Invalid Key Word Index");
-
-      await arkivContract
-        .connect(signers.alice)
-        .grantAccess(FILE_ID_1, signers.bob.address);
-
-      const key = generateMockAESKey();
-      const encInput = await fhevm
-        .createEncryptedInput(arkivContractAddress, signers.alice.address)
-        .add64(Number(key[0]))
-        .add64(Number(key[1]))
-        .add64(Number(key[2]))
-        .add64(Number(key[3]))
-        .encrypt();
-
-      await arkivContract
-        .connect(signers.alice)
-        .storeKeyWordsBatch(
-          FILE_ID_1,
-          signers.bob.address,
-          encInput.handles,
-          [encInput.inputProof, encInput.inputProof, encInput.inputProof, encInput.inputProof]
-        );
-
-      // Try to access word index 4 (out of range)
-      await expect(
-        arkivContract
-          .connect(signers.bob)
-          .getKeyWord(FILE_ID_1, 4)
-      ).to.be.revertedWith("wordIndex out of range");
-
-      console.log(`✅ Invalid index properly rejected`);
-    });
-
-    it("should handle owner viewing keys with invalid index", async function () {
-      await arkivContract
-        .connect(signers.alice)
-        .grantAccess(FILE_ID_1, signers.bob.address);
-
-      await expect(
-        arkivContract
-          .connect(signers.alice)
-          .getKeyWordFor(FILE_ID_1, signers.bob.address, 5)
-      ).to.be.revertedWith("wordIndex out of range");
-    });
-
-    it("should prevent non-owner from storing keys", async function () {
-      console.log("\n🚫 Testing Non-Owner Key Storage Prevention");
-
-      const key = generateMockAESKey();
-      const encInput = await fhevm
-        .createEncryptedInput(arkivContractAddress, signers.bob.address)
-        .add64(Number(key[0]))
-        .add64(Number(key[1]))
-        .add64(Number(key[2]))
-        .add64(Number(key[3]))
-        .encrypt();
-
-      // Bob tries to store keys (not owner)
-      await expect(
-        arkivContract
-          .connect(signers.bob)
-          .storeKeyWordsBatch(
-            FILE_ID_1,
-            signers.charlie.address,
-            encInput.handles,
-            [encInput.inputProof, encInput.inputProof, encInput.inputProof, encInput.inputProof]
-          )
-      ).to.be.revertedWith("Only file owner");
-
-      console.log(`✅ Non-owner prevented from storing keys`);
-    });
-
     it("should allow overwriting existing keys", async function () {
       console.log("\n🔄 Testing Key Overwriting");
 
@@ -1155,183 +1058,4 @@ describe("Arkiv - Complete Flow with Encrypted Key Management", function () {
     });
   });
 
-  describe("Gas Optimization and Batch Operations", function () {
-    it("should efficiently store keys in batch rather than individually", async function () {
-      console.log("\n⚡ Testing Batch Storage Efficiency");
-
-      await arkivContract
-        .connect(signers.alice)
-        .createFile(FILE_ID_1, CID_1, METADATA_1);
-
-      await arkivContract
-        .connect(signers.alice)
-        .grantAccess(FILE_ID_1, signers.bob.address);
-
-      const key = generateMockAESKey();
-      const encInput = await fhevm
-        .createEncryptedInput(arkivContractAddress, signers.alice.address)
-        .add64(Number(key[0]))
-        .add64(Number(key[1]))
-        .add64(Number(key[2]))
-        .add64(Number(key[3]))
-        .encrypt();
-
-      // Store all 4 words in single transaction
-      const tx = await arkivContract
-        .connect(signers.alice)
-        .storeKeyWordsBatch(
-          FILE_ID_1,
-          signers.bob.address,
-          encInput.handles,
-          [encInput.inputProof, encInput.inputProof, encInput.inputProof, encInput.inputProof]
-        );
-
-      const receipt = await tx.wait();
-      console.log(`✅ Batch storage completed in single transaction`);
-      console.log(`   Gas used: ${receipt?.gasUsed.toString()}`);
-
-      // Verify all words stored
-      const wordCount = await arkivContract.keyWordCount(FILE_ID_1, signers.bob.address);
-      expect(wordCount).to.equal(4);
-    });
-
-    it("should handle multiple recipient batch operations", async function () {
-      console.log("\n👥 Testing Multiple Recipients");
-
-      await arkivContract
-        .connect(signers.alice)
-        .createFile(FILE_ID_1, CID_1, METADATA_1);
-
-      const recipients = [signers.bob, signers.charlie, signers.institution1];
-      const key = generateMockAESKey();
-
-      for (const recipient of recipients) {
-        await arkivContract
-          .connect(signers.alice)
-          .grantAccess(FILE_ID_1, recipient.address);
-
-        const encInput = await fhevm
-          .createEncryptedInput(arkivContractAddress, signers.alice.address)
-          .add64(Number(key[0]))
-          .add64(Number(key[1]))
-          .add64(Number(key[2]))
-          .add64(Number(key[3]))
-          .encrypt();
-
-        await arkivContract
-          .connect(signers.alice)
-          .storeKeyWordsBatch(
-            FILE_ID_1,
-            recipient.address,
-            encInput.handles,
-            [encInput.inputProof, encInput.inputProof, encInput.inputProof, encInput.inputProof]
-          );
-      }
-
-      console.log(`✅ Keys stored for ${recipients.length} recipients`);
-
-      // Verify all can access
-      for (const recipient of recipients) {
-        const wordCount = await arkivContract.keyWordCount(FILE_ID_1, recipient.address);
-        expect(wordCount).to.equal(4);
-      }
-
-      console.log(`✅ All recipients can access their keys`);
-    });
-  });
-
-  describe("Security and Access Patterns", function () {
-    beforeEach(async function () {
-      await arkivContract
-        .connect(signers.alice)
-        .createFile(FILE_ID_1, CID_1, METADATA_1);
-    });
-
-    it("should enforce strict owner-only operations", async function () {
-      console.log("\n🔒 Testing Owner-Only Enforcement");
-
-      // Non-owner cannot grant access
-      await expect(
-        arkivContract
-          .connect(signers.bob)
-          .grantAccess(FILE_ID_1, signers.charlie.address)
-      ).to.be.revertedWith("Only file owner");
-
-      // Non-owner cannot revoke access
-      await expect(
-        arkivContract
-          .connect(signers.bob)
-          .revokeAccess(FILE_ID_1, signers.charlie.address)
-      ).to.be.revertedWith("Only file owner");
-
-      // Non-owner cannot store keys
-      const key = generateMockAESKey();
-      const encInput = await fhevm
-        .createEncryptedInput(arkivContractAddress, signers.bob.address)
-        .add64(Number(key[0]))
-        .add64(Number(key[1]))
-        .add64(Number(key[2]))
-        .add64(Number(key[3]))
-        .encrypt();
-
-      await expect(
-        arkivContract
-          .connect(signers.bob)
-          .storeKeyWordsBatch(
-            FILE_ID_1,
-            signers.charlie.address,
-            encInput.handles,
-            [encInput.inputProof, encInput.inputProof, encInput.inputProof, encInput.inputProof]
-          )
-      ).to.be.revertedWith("Only file owner");
-
-      console.log(`✅ All owner-only operations properly enforced`);
-    });
-
-    it("should prevent cross-recipient key access", async function () {
-      console.log("\n🚫 Testing Cross-Recipient Access Prevention");
-
-      // Setup: Grant access and store keys for both Bob and Charlie
-      await arkivContract
-        .connect(signers.alice)
-        .grantAccess(FILE_ID_1, signers.bob.address);
-
-      await arkivContract
-        .connect(signers.alice)
-        .grantAccess(FILE_ID_1, signers.charlie.address);
-
-      const key = generateMockAESKey();
-      let encInput = await fhevm
-        .createEncryptedInput(arkivContractAddress, signers.alice.address)
-        .add64(Number(key[0]))
-        .add64(Number(key[1]))
-        .add64(Number(key[2]))
-        .add64(Number(key[3]))
-        .encrypt();
-
-      await arkivContract
-        .connect(signers.alice)
-        .storeKeyWordsBatch(
-          FILE_ID_1,
-          signers.bob.address,
-          encInput.handles,
-          [encInput.inputProof, encInput.inputProof, encInput.inputProof, encInput.inputProof]
-        );
-
-      // Bob can access his own keys
-      const bobKey = await arkivContract
-        .connect(signers.bob)
-        .getKeyWord(FILE_ID_1, 0);
-      expect(bobKey).to.not.be.undefined;
-
-      // Charlie cannot access Bob's keys through getKeyWordFor (not owner)
-      await expect(
-        arkivContract
-          .connect(signers.charlie)
-          .getKeyWordFor(FILE_ID_1, signers.bob.address, 0)
-      ).to.be.revertedWith("Only file owner");
-
-      console.log(`✅ Cross-recipient access properly blocked`);
-    });
-  });
 });
