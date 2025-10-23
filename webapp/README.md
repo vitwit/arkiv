@@ -37,7 +37,7 @@ This project uses environment variables for configuration.
 
 ```
 VITE_USDC_CONTRACT="0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
-VITE_DCA_CONTRACT="dca-contract-address"
+VITE_CONTRACT="dca-contract-address"
 VITE_RPC_URL="https://sepolia.infura.io/v3/api-key"
 VITE_TX_HASH_URL="https://sepolia.etherscan.io/tx/"
 ```

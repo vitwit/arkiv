@@ -1,112 +1,237 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { ethers } from 'ethers';
+import { ABI, contractAddress } from './dcaTx';
+import type { Arkiv } from './Arkiv';
 
-
-import { ethers } from "ethers";
-import { ABI, contractAddress } from "./dcaTx";
-import type { ConfidentialDCABatch } from "./ConfidentialDCABatch";
-
-export interface Pair {
-    from: string
-    fromName: string
-    fromDecimals: number
-    to: string
-    toName: string
-    toDecimals: number
-    allowed: boolean
+export interface Institution {
+  name: string;
+  description: string;
+  contactInfo: string;
+  account: string;
+  exists: boolean;
 }
 
-export async function getPairs(): Promise<Pair[]> {
-    const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+export async function getInstitutions(): Promise<Institution[]> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
 
-    const contract = new ethers.Contract(
-        contractAddress,
-        ABI,
-        provider
-    ) as unknown as ConfidentialDCABatch;
-
-    try {
-        const pairs: any[] = await contract.getAllPairs();
-        return pairs as unknown as Pair[];
-    } catch (err) {
-        throw err;
-    }
+  const institutions: any[] = await contract.listInstitutions();
+  return institutions as unknown as Institution[];
 }
 
+export async function getFileCid(fileId: string): Promise<string | null> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
 
-
-export interface PlanResult {
-    id: number
-    fromName: string
-    toName: string
-    startedAt: number
-    frequency: string
-    totalAmount: string
-    amount: string
-    totalIntervals: string
-    executedIntervals: string
-    remainingAmount: string
-    status: number
-    from: string
-    to: string
-    fromDecimals: number;
-    toDecimals: number;
-    pendingOut: string;
+  try {
+    const cid = await contract.getFileCid(fileId);
+    return cid;
+  } catch (err) {
+    console.log(err);
+    return null;
+  }
 }
 
-export async function getPlans(owner: string, pairs: Pair[]): Promise<PlanResult[]> {
-    const pairsMap: Record<string, number> = {};
-    for (let index = 0; index < pairs.length; index++) {
-        const pair = pairs[index];
-        pairsMap[pair.from + pair.to] = index
-    }
-    const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+export async function getFileMetadata(fileId: string): Promise<string | null> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
 
-    const contract = new ethers.Contract(
-        contractAddress,
-        ABI,
-        provider
-    ) as unknown as ConfidentialDCABatch;
+  try {
+    const metadata = await contract.getFileMetadata(fileId);
+    return metadata;
+  } catch (err) {
+    console.log(err);
+    return null;
+  }
+}
 
-    try {
-        const nextPlanId = await contract.nextPlanId();
-        const ownedPlans: PlanResult[] = [];
+export async function getFilesByOwner(owner: string): Promise<string[]> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
 
-        for (let i = 1; i < nextPlanId; i++) {
-            const plan = await contract.plans(i);
+  try {
+    const fileIds: string[] = await contract.getFilesByOwner(owner);
+    // Convert bytes32 → string (if needed, e.g., from keccak256 hash to hex)
+    return fileIds.map((id) => id.toString());
+  } catch (err) {
+    console.error('Error fetching files for owner:', err);
+    return [];
+  }
+}
 
-            const pairIndex = pairsMap[plan.tokens.fromToken + plan.tokens.toToken];
-            const fromToken = pairs[pairIndex].fromName
-            const toToken = pairs[pairIndex].toName
-            const from = pairs[pairIndex].from;
-            const fromDecimals = pairs[pairIndex].fromDecimals;
-            const toDecimals = pairs[pairIndex].toDecimals;
-            const to = pairs[pairIndex].to;
+// export async function listRecipients(fileId: string): Promise<string[]> {
+//   const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+//   const contract = new ethers.Contract(
+//     contractAddress,
+//     ABI,
+//     provider
+//   ) as unknown as Arkiv;
 
-            if (plan.owner.toLowerCase() === owner.toLowerCase()) {
-                ownedPlans.push({
-                    id: Number(plan.meta.planId),
-                    fromName: fromToken,
-                    toName: toToken,
-                    from: from,
-                    to: to,
-                    fromDecimals: fromDecimals,
-                    toDecimals: toDecimals,
-                    startedAt: Number(plan.timing.startTime),
-                    amount: plan.amounts.amountPerInterval,
-                    totalAmount: plan.amounts.totalAmount,
-                    remainingAmount: plan.amounts.remainingAmount,
-                    executedIntervals: plan.timing.executedIntervals,
-                    pendingOut: plan.amounts.pendingOut,
-                    frequency: plan.timing.interval,
-                    totalIntervals: plan.timing.totalIntervals,
-                    status: Number(plan.status)
-                });
+//   try {
+//     const recipients = await contract.listRecipients(fileId);
+//     return recipients;
+//   } catch (err) {
+//     console.log(err);
+//     return [];
+//   }
+// }
 
-            }
-        }
 
-        return ownedPlans;
-    } catch (err) {
-        console.log(err);
-        throw err;
-    }
+export async function listRevokedRecipients(fileId: string): Promise<string[]> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
+
+  try {
+    const recipients = await contract.listRecipients(fileId);
+    return recipients;
+  } catch (err) {
+    console.log(err);
+    return [];
+  }
+}
+
+export interface FileResult {
+  fileId: string;
+  owner: string;
+  cid: string;
+  metadata: string;
+  recipients: string[];
+  keyWordCount: number;
+}
+
+export async function getFileDetails(
+  fileId: string
+): Promise<FileResult | null> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
+
+  try {
+    const cid = await contract.getFileCid(fileId);
+    const metadata = await contract.getFileMetadata(fileId);
+    const recipients = await contract.listRecipients(fileId);
+
+    return {
+      fileId,
+      owner: '',
+      cid,
+      metadata,
+      recipients,
+      keyWordCount: 0,
+    };
+  } catch (err) {
+    console.log(err);
+    return null;
+  }
+}
+
+export async function getRecipientKeyWordCount(
+  fileId: string,
+  recipient: string
+): Promise<number> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
+
+  try {
+    const count = await contract.keyWordCount(fileId, recipient);
+    return Number(count);
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+}
+
+export async function checkFileAccess(
+  fileId: string,
+  account: string
+): Promise<boolean> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
+
+  try {
+    return await contract.hasAccess(fileId, account);
+  } catch (err) {
+    console.log(err);
+    return false;
+  }
+}
+
+export async function getFileRecipients(fileId: string): Promise<string[]> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
+
+  try {
+    return await contract.listRecipients(fileId);
+  } catch (err) {
+    console.log(err);
+    throw err;
+  }
+}
+
+export interface InstitutionDetails {
+  name: string;
+  description: string;
+  contactInfo: string;
+  account: string;
+  exists: boolean;
+}
+
+export async function getInstitutionDetails(
+  account: string
+): Promise<InstitutionDetails | null> {
+  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
+  const contract = new ethers.Contract(
+    contractAddress,
+    ABI,
+    provider
+  ) as unknown as Arkiv;
+
+  try {
+    const institution = await contract.getInstitution(account);
+    return {
+      name: institution.name,
+      description: institution.description,
+      contactInfo: institution.contactInfo,
+      account: institution.account,
+      exists: institution.exists,
+    };
+  } catch (err) {
+    console.log(err);
+    return null;
+  }
 }

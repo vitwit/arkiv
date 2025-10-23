@@ -1,7 +1,13 @@
-# FHEVM Hardhat Template
+# Arkiv - Confidential Medical Records Management (FHEVM)
 
-A Hardhat-based template for developing Fully Homomorphic Encryption (FHE) enabled Solidity smart contracts using the
-FHEVM protocol by Zama.
+A Hardhat-based project implementing a privacy-preserving medical records management system using the FHEVM protocol by Zama.
+
+This contract (Arkiv.sol) enables secure healthcare data sharing with fully homomorphic encryption (FHE):
+- Encryption keys remain confidential on-chain using encrypted 64-bit words
+- Medical records stored on IPFS with encrypted access control
+- Healthcare institutions can register and be verified on-chain
+- Patients control access grants and revocations with automatic key cleanup
+- Recipients decrypt keys locally without exposing sensitive data
 
 ## Quick Start
 
@@ -10,20 +16,19 @@ For detailed instructions see:
 
 ### Prerequisites
 
-- **Node.js**: Version 20 or higher
+- **Node.js**: Version 18 or higher
 - **npm or yarn/pnpm**: Package manager
+- **IPFS**: For storing encrypted medical records (optional for testing)
 
 ### Installation
 
 1. **Install dependencies**
-
-   ```bash
+```bash
    npm install
-   ```
+```
 
 2. **Set up environment variables**
-
-   ```bash
+```bash
    npx hardhat vars set MNEMONIC
 
    # Set your Infura API key for network access
@@ -31,52 +36,91 @@ For detailed instructions see:
 
    # Optional: Set Etherscan API key for contract verification
    npx hardhat vars set ETHERSCAN_API_KEY
-   ```
+```
 
 3. **Compile and test**
-
-   ```bash
+```bash
    npm run compile
    npm run test
-   ```
+```
 
 4. **Deploy to local network**
-
-   ```bash
+```bash
    # Start a local FHEVM-ready node
    npx hardhat node
    # Deploy to local network
    npx hardhat deploy --network localhost
-   ```
+```
 
 5. **Deploy to Sepolia Testnet**
-
-   ```bash
+```bash
    # Deploy to Sepolia
    npx hardhat deploy --network sepolia
    # Verify contract on Etherscan
    npx hardhat verify --network sepolia <CONTRACT_ADDRESS>
-   ```
+```
 
 6. **Test on Sepolia Testnet**
-
-   ```bash
+```bash
    # Once deployed, you can run a simple test on Sepolia.
    npx hardhat test --network sepolia
-   ```
+```
 
 ## 📁 Project Structure
+```
+arkiv/
+├── contracts/
+│   └── Arkiv.sol                  # Main contract
+├── deploy/                        # Deployment scripts
+├── test/
+│   └── Arkiv.test.ts              # Comprehensive tests
+├── hardhat.config.ts              # Hardhat config
+└── package.json
+```
 
-```
-fhevm-hardhat-template/
-├── contracts/           # Smart contract source files
-│   └── FHECounter.sol   # Example FHE counter contract
-├── deploy/              # Deployment scripts
-├── tasks/               # Hardhat custom tasks
-├── test/                # Test files
-├── hardhat.config.ts    # Hardhat configuration
-└── package.json         # Dependencies and scripts
-```
+## ⚙️ Core Features
+
+### 🔹 Institution Registry
+
+- Healthcare providers register on-chain with:
+  - Institution name and description
+  - Contact information
+  - Verified Ethereum address
+- Public directory of registered institutions
+
+### 🔹 File Management
+
+- Create medical record entries with:
+  - IPFS CID (content identifier)
+  - Optional metadata
+  - Owner address
+- Retrieve file information and metadata
+
+### 🔹 Confidential Access Control
+
+- Grant/revoke access to specific recipients
+- Automatic access list management
+- Owner-only permissions for access control
+
+### 🔹 Encrypted Key Storage
+
+- AES-256 encryption keys split into 4×64-bit encrypted words
+- Each recipient receives their own encrypted key copy
+- Keys stored using FHEVM euint64 primitives
+- Batch upload for gas efficiency
+
+### 🔹 Key Retrieval
+
+- Recipients fetch their encrypted key words
+- Local decryption using fhevmjs library
+- Zero-knowledge: contract never sees plaintext keys
+- Owner can view all stored keys for audit purposes
+
+### 🔹 Access Revocation
+
+- Immediate access removal
+- Automatic cleanup of encrypted keys
+- Maintains privacy even after revocation
 
 ## 📜 Available Scripts
 
@@ -88,6 +132,18 @@ fhevm-hardhat-template/
 | `npm run lint`     | Run linting checks       |
 | `npm run clean`    | Clean build artifacts    |
 
+## 🔄 Application Flow
+
+### Owner Flow
+```
+Create File → Grant Access → Store Encrypted Key → Monitor Access → Revoke (Optional)
+```
+
+### Healthcare Provider Flow
+```
+Register Institution → Receive Access Grant → Retrieve Encrypted Keys → Decrypt Locally → Access Medical Records
+```
+
 ## 📚 Documentation
 
 - [FHEVM Documentation](https://docs.zama.ai/fhevm)
@@ -95,16 +151,18 @@ fhevm-hardhat-template/
 - [FHEVM Testing Guide](https://docs.zama.ai/protocol/solidity-guides/development-guide/hardhat/write_test)
 - [FHEVM Hardhat Plugin](https://docs.zama.ai/protocol/solidity-guides/development-guide/hardhat)
 
+## 🎯 Use Cases
+
+- Patient-controlled health record sharing
+- Secure inter-institutional medical data transfer
+- Telemedicine with privacy-preserving access
+- Clinical research with encrypted data access
+- Insurance claim verification without exposing full records
+
 ## 📄 License
 
-This project is licensed under the BSD-3-Clause-Clear License. See the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/zama-ai/fhevm/issues)
-- **Documentation**: [FHEVM Docs](https://docs.zama.ai)
-- **Community**: [Zama Discord](https://discord.gg/zama)
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Built with ❤️ by the Zama team**
+**Built with ❤️ using Zama FHEVM**

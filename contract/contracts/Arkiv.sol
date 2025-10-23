@@ -32,6 +32,8 @@ contract Arkiv is SepoliaConfig {
 
     mapping(bytes32 => FileMeta) private _files;
 
+    mapping(address => bytes32[]) private _ownerFiles;
+
     struct Institution {
         string name; // Institution name
         string description; // Short description
@@ -90,6 +92,8 @@ contract Arkiv is SepoliaConfig {
         f.cid = cid;
         f.metadata = metadata;
         f.exists = true;
+
+        _ownerFiles[msg.sender].push(fileId);
         emit FileCreated(fileId, msg.sender, cid, metadata);
     }
 
@@ -101,6 +105,10 @@ contract Arkiv is SepoliaConfig {
     function getFileMetadata(bytes32 fileId) external view returns (string memory) {
         require(_files[fileId].exists, "File: not found");
         return _files[fileId].metadata;
+    }
+
+    function getFilesByOwner(address owner) external view returns (bytes32[] memory) {
+        return _ownerFiles[owner];
     }
 
     // --- Access control -----------------------------------------------------
@@ -136,9 +144,67 @@ contract Arkiv is SepoliaConfig {
         }
     }
 
+    // function listRecipients(bytes32 fileId) external view returns (address[] memory) {
+    //     require(_files[fileId].exists, "File: not found");
+
+    //     return _files[fileId].recipients;
+    // }
+
     function listRecipients(bytes32 fileId) external view returns (address[] memory) {
-        require(_files[fileId].exists, "File: not found");
-        return _files[fileId].recipients;
+        FileMeta storage f = _files[fileId];
+        require(f.exists, "File: not found");
+
+        uint256 count = 0;
+        uint256 total = f.recipients.length;
+
+        for (uint256 i = 0; i < total; i++) {
+            if (f.canAccess[f.recipients[i]]) {
+                count++;
+            }
+        }
+
+        address[] memory activeRecipients = new address[](count);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < total; i++) {
+            address recipient = f.recipients[i];
+            if (f.canAccess[recipient]) {
+                activeRecipients[index] = recipient;
+                index++;
+            }
+        }
+
+        return activeRecipients;
+    }
+
+    /**
+     * @dev Returns the list of recipients whose access has been revoked (canAccess == false).
+     */
+    function listRevokedRecipients(bytes32 fileId) external view returns (address[] memory) {
+        FileMeta storage f = _files[fileId];
+        require(f.exists, "File: not found");
+
+        uint256 total = f.recipients.length;
+        uint256 count = 0;
+
+        for (uint256 i = 0; i < total; i++) {
+            if (!f.canAccess[f.recipients[i]]) {
+                count++;
+            }
+        }
+
+        address[] memory revokedRecipients = new address[](count);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < total; i++) {
+            address recipient = f.recipients[i];
+            if (!f.canAccess[recipient]) {
+                revokedRecipients[index] = recipient;
+                index++;
+            }
+        }
+
+        return revokedRecipients;
     }
 
     function hasAccess(bytes32 fileId, address account) external view returns (bool) {
