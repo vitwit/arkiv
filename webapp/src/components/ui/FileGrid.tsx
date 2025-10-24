@@ -1,8 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
-import { getInstitutions, type Institution, getFileRecipients } from '../../lib/dcaQuery';
+import {
+  getInstitutions,
+  getFileRecipients,
+  getFileDetails,
+} from '../../lib/dcaQuery';
 import { grantAccess, revokeAccess } from '../../lib/dcaTx';
 import { useSnackbar } from '../../hooks/useSnackbar';
+import { decryptWithAesGcm } from '../../lib/crypto'; // AES decrypt function
 
 interface FileRecord {
   cid: string;
@@ -17,19 +22,24 @@ interface FileRecord {
   id?: string;
 }
 
-export function FileGrid({ files }: { files: FileRecord[] }) {
+export function FileGrid({ files, isSharedWithMe }: { files: FileRecord[], isSharedWithMe?: boolean }) {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [revokeModalOpen, setRevokeModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileRecord | null>(null);
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [sharedInstitutions, setSharedInstitutions] = useState<Institution[]>([]);
-  const [alreadySharedAddresses, setAlreadySharedAddresses] = useState<Set<string>>(new Set());
-  const [selectedInstitutions, setSelectedInstitutions] = useState<Set<string>>(new Set());
+  const [institutions, setInstitutions] = useState<any[]>([]);
+  const [sharedInstitutions, setSharedInstitutions] = useState<any[]>([]);
+  const [alreadySharedAddresses, setAlreadySharedAddresses] = useState<
+    Set<string>
+  >(new Set());
+  const [selectedInstitutions, setSelectedInstitutions] = useState<Set<string>>(
+    new Set()
+  );
   const [loading, setLoading] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [loadingFileId, setLoadingFileId] = useState("");
   const { showSnackbar } = useSnackbar();
-
 
   if (files.length === 0) return <EmptyState message="No files found." />;
 
@@ -39,7 +49,7 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
       return new Date(file.timestamp).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
       });
     }
     return 'Unknown';
@@ -59,7 +69,10 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
       financial: 'bg-green-500/20 text-green-300 border-green-500/30',
       research: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
     };
-    return colors[category?.toLowerCase() || ''] || 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+    return (
+      colors[category?.toLowerCase() || ''] ||
+      'bg-gray-500/20 text-gray-300 border-gray-500/30'
+    );
   };
 
   const getCategoryIcon = (category?: string) => {
@@ -73,10 +86,7 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
   };
 
   const handleShareClick = async (file: FileRecord) => {
-    if (!file.id) {
-      alert('File ID not found');
-      return;
-    }
+    if (!file.id) return alert('File ID not found');
 
     setSelectedFile(file);
     setShareModalOpen(true);
@@ -84,32 +94,28 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
     setSelectedInstitutions(new Set());
 
     try {
-      // Fetch all institutions
       const institutionsList = await getInstitutions();
-      
-      // Fetch recipients who already have access
       const recipients = await getFileRecipients(file.id);
-      const recipientSet = new Set(recipients.map(addr => addr.toLowerCase()));
-      console.log("ree....", recipientSet)
-      
+      const recipientSet = new Set(
+        recipients.map((addr) => addr.toLowerCase())
+      );
+
       setInstitutions(institutionsList);
       setAlreadySharedAddresses(recipientSet);
-      
-      // Auto-select already shared institutions
       setSelectedInstitutions(recipientSet);
     } catch (error: any) {
       console.error('Error fetching institutions:', error);
-      showSnackbar(`failed to load institutions ${error.message || JSON.stringify(error)}`, "error");
+      showSnackbar(
+        `failed to load institutions ${error.message || JSON.stringify(error)}`,
+        'error'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleRevokeClick = async (file: FileRecord) => {
-    if (!file.id) {
-      alert('File ID not found');
-      return;
-    }
+    if (!file.id) return alert('File ID not found');
 
     setSelectedFile(file);
     setRevokeModalOpen(true);
@@ -117,105 +123,160 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
     setSelectedInstitutions(new Set());
 
     try {
-      // Fetch all institutions
       const institutionsList = await getInstitutions();
-      
-      // Fetch recipients who have access
       const recipients = await getFileRecipients(file.id);
-      
-      // Filter institutions to show only those who have access
-      const sharedInsts = institutionsList.filter(inst =>
-        recipients.some(addr => addr.toLowerCase() === inst.account.toLowerCase())
+      const sharedInsts = institutionsList.filter((inst) =>
+        recipients.some(
+          (addr) => addr.toLowerCase() === inst.account.toLowerCase()
+        )
       );
-      
       setSharedInstitutions(sharedInsts);
     } catch (error: any) {
       console.error('Error fetching shared institutions:', error);
-      showSnackbar(`failed to load institutions ${error.message || JSON.stringify(error)}`, "error");
+      showSnackbar(
+        `failed to load institutions ${error.message || JSON.stringify(error)}`,
+        'error'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleInstitutionToggle = (address: string) => {
-    setSelectedInstitutions(prev => {
+    setSelectedInstitutions((prev) => {
       const newSet = new Set(prev);
       const lowerAddress = address.toLowerCase();
-      
-      // Don't allow deselecting already shared institutions in share modal
+
       if (shareModalOpen && alreadySharedAddresses.has(lowerAddress)) {
         return prev;
       }
-      
+
       if (newSet.has(lowerAddress)) {
         newSet.delete(lowerAddress);
       } else {
         newSet.add(lowerAddress);
       }
+
       return newSet;
     });
   };
 
   const handleShareConfirm = async () => {
-    if (!selectedFile || !selectedFile.id || selectedInstitutions.size === 0) {
-      alert('Please select at least one institution');
-      return;
-    }
+    if (!selectedFile || !selectedFile.id || selectedInstitutions.size === 0)
+      return alert('Please select at least one institution');
 
-    // Filter out already shared addresses
     const newInstitutions = Array.from(selectedInstitutions).filter(
-      addr => !alreadySharedAddresses.has(addr)
+      (addr) => !alreadySharedAddresses.has(addr)
     );
-
-    if (newInstitutions.length === 0) {
-      alert('All selected institutions already have access');
-      return;
-    }
+    if (newInstitutions.length === 0)
+      return alert('All selected institutions already have access');
 
     setSharing(true);
     try {
       const fileId = selectedFile.id;
-      const promises = newInstitutions.map(address =>
-        grantAccess(fileId, address)
+      await Promise.all(
+        newInstitutions.map((address) => grantAccess(fileId, address))
       );
-
-      await Promise.all(promises);
-      showSnackbar("shared successfully with", "tx-success", String(newInstitutions.length));
+      showSnackbar(
+        'shared successfully with',
+        'tx-success',
+        String(newInstitutions.length)
+      );
       setShareModalOpen(false);
       setSelectedFile(null);
       setSelectedInstitutions(new Set());
       setAlreadySharedAddresses(new Set());
     } catch (error: any) {
       console.error('Error sharing file:', error);
-      showSnackbar(`failed to share ${error.message || JSON.stringify(error)}`, "error");
+      showSnackbar(
+        `failed to share ${error.message || JSON.stringify(error)}`,
+        'error'
+      );
     } finally {
       setSharing(false);
     }
   };
 
   const handleRevokeConfirm = async () => {
-    if (!selectedFile || !selectedFile.id || selectedInstitutions.size === 0) {
-      alert('Please select at least one institution to revoke');
-      return;
-    }
+    if (!selectedFile || !selectedFile.id || selectedInstitutions.size === 0)
+      return alert('Please select at least one institution to revoke');
 
     setRevoking(true);
     try {
       const fileId = selectedFile.id;
-      const promises = Array.from(selectedInstitutions).map(address =>
-        revokeAccess(fileId, address)
+      await Promise.all(
+        Array.from(selectedInstitutions).map((address) =>
+          revokeAccess(fileId, address)
+        )
       );
-
-      await Promise.all(promises);
-      showSnackbar("Successfully revoked access from", "tx-success", String(selectedInstitutions.size));
+      showSnackbar(
+        'Successfully revoked access from',
+        'tx-success',
+        String(selectedInstitutions.size)
+      );
       setRevokeModalOpen(false);
       setSelectedFile(null);
       setSelectedInstitutions(new Set());
     } catch (error: any) {
       console.error('Error revoking access:', error);
-      showSnackbar(`failed to revoke access ${error.message || JSON.stringify(error)}`, "error");
+      showSnackbar(
+        `failed to revoke access ${error.message || JSON.stringify(error)}`,
+        'error'
+      );
     } finally {
       setRevoking(false);
+    }
+  };
+
+  const handleViewFile = async (file: FileRecord) => {
+    if (!file.id) return alert('File ID not found');
+
+    try {
+      setDownloadLoading(true);
+      const fileDetails = await getFileDetails(file.id);
+      if (!fileDetails) return alert('File details not found');
+
+      const { cid, metadata } = fileDetails;
+
+      let parsedMetadata: {
+        aesKey: number[];
+        iv: number[];
+        fileType?: string;
+        title?: string;
+        description?: string;
+        [key: string]: any;
+      };
+
+      try {
+        parsedMetadata = JSON.parse(metadata);
+      } catch (err) {
+        console.error('Failed to parse metadata:', err);
+        return alert('Invalid file metadata');
+      }
+
+      const aesKey = new Uint8Array(parsedMetadata.aesKey);
+      const iv = new Uint8Array(parsedMetadata.iv);
+
+      const res = await fetch(`https://ipfs.io/ipfs/${cid}`);
+      const encryptedBuffer = new Uint8Array(await res.arrayBuffer());
+
+      const decrypted = await decryptWithAesGcm(encryptedBuffer, iv, aesKey);
+
+      const blob = new Blob([decrypted], {
+        type: parsedMetadata.fileType || 'application/octet-stream',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = parsedMetadata.fileName || 'file';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err: any) {
+      console.error('Error fetching/decrypting file:', err);
+      alert(`Failed to download file: ${err.message || JSON.stringify(err)}`);
+    } finally {
+      setDownloadLoading(false);
     }
   };
 
@@ -230,7 +291,11 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
             {/* Category Badge */}
             {file.category && (
               <div className="absolute top-4 right-4">
-                <span className={`text-xs px-3 py-1 rounded-full border ${getCategoryColor(file.category)} font-medium`}>
+                <span
+                  className={`text-xs px-3 py-1 rounded-full border ${getCategoryColor(
+                    file.category
+                  )} font-medium`}
+                >
                   {getCategoryIcon(file.category)} {file.category}
                 </span>
               </div>
@@ -252,27 +317,26 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                 {file.description}
               </p>
 
-              {/* Metadata Grid */}
               <div className="space-y-2 text-xs">
                 <div className="flex items-center gap-2 text-gray-400">
                   <span className="text-base">📅</span>
                   <span>{formatDate(file)}</span>
                 </div>
-                
                 {file.sharedWith !== undefined && (
                   <div className="flex items-center gap-2 text-gray-400">
                     <span className="text-base">👥</span>
-                    <span>{file.sharedWith} {file.sharedWith === 1 ? 'recipient' : 'recipients'}</span>
+                    <span>
+                      {file.sharedWith}{' '}
+                      {file.sharedWith === 1 ? 'recipient' : 'recipients'}
+                    </span>
                   </div>
                 )}
-
                 {file.fileName && (
                   <div className="flex items-center gap-2 text-gray-400">
                     <span className="text-base">📎</span>
                     <span className="truncate">{file.fileName}</span>
                   </div>
                 )}
-
                 {file.fileSize && (
                   <div className="flex items-center gap-2 text-gray-400">
                     <span className="text-base">💾</span>
@@ -285,49 +349,36 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
             {/* CID Display */}
             <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
               <p className="text-xs text-gray-500 mb-1">IPFS CID</p>
-              <p className="text-xs font-mono text-gray-300 truncate">{file.cid}</p>
+              <p className="text-xs font-mono text-gray-300 truncate">
+                {file.cid}
+              </p>
             </div>
 
             {/* Action Buttons */}
             <div className="space-y-2">
-              {/* Primary Button - View on IPFS */}
               <button
-                onClick={() => window.open(`https://ipfs.io/ipfs/${file.cid}`, "_blank")}
+                onClick={() => {
+                  setLoadingFileId(file.cid)
+                  handleViewFile(file)
+                }}
                 className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 text-sm"
               >
-                <span>View on IPFS</span>
-                <svg 
-                  className="w-3.5 h-3.5" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
+                {(downloadLoading && loadingFileId == file.cid) ? "Loading...": "View"}
               </button>
-
-              {/* Secondary Buttons - Share & Revoke */}
-              <div className="grid grid-cols-2 gap-2">
+             {isSharedWithMe ? null : <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => handleShareClick(file)}
                   className="px-3 py-2 bg-gray-700/50 hover:bg-green-600/50 border border-gray-600/50 hover:border-green-500/50 text-gray-300 hover:text-green-300 font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 text-xs"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                  </svg>
-                  <span>Share</span>
+                  Share
                 </button>
-
                 <button
                   onClick={() => handleRevokeClick(file)}
                   className="px-3 py-2 bg-gray-700/50 hover:bg-red-600/50 border border-gray-600/50 hover:border-red-500/50 text-gray-300 hover:text-red-300 font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 text-xs"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                  <span>Revoke</span>
+                  Revoke
                 </button>
-              </div>
+              </div>}
             </div>
           </div>
         ))}
@@ -347,14 +398,27 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                   onClick={() => setShareModalOpen(false)}
                   className="text-gray-400 hover:text-white transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
               {selectedFile && (
                 <p className="text-sm text-gray-400 mt-2">
-                  Sharing: <span className="text-blue-400 font-medium">{selectedFile.title}</span>
+                  Sharing:{' '}
+                  <span className="text-blue-400 font-medium">
+                    {selectedFile.title}
+                  </span>
                 </p>
               )}
             </div>
@@ -364,7 +428,9 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
-                  <span className="ml-3 text-gray-400">Loading institutions...</span>
+                  <span className="ml-3 text-gray-400">
+                    Loading institutions...
+                  </span>
                 </div>
               ) : institutions.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
@@ -373,7 +439,9 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
               ) : (
                 <div className="space-y-3">
                   {institutions.map((institution, idx) => {
-                    const isAlreadyShared = alreadySharedAddresses.has(institution.account.toLowerCase());
+                    const isAlreadyShared = alreadySharedAddresses.has(
+                      institution.account.toLowerCase()
+                    );
                     return (
                       <label
                         key={idx}
@@ -385,22 +453,32 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                       >
                         <input
                           type="checkbox"
-                          checked={selectedInstitutions.has(institution.account.toLowerCase())}
-                          onChange={() => handleInstitutionToggle(institution.account)}
+                          checked={selectedInstitutions.has(
+                            institution.account.toLowerCase()
+                          )}
+                          onChange={() =>
+                            handleInstitutionToggle(institution.account)
+                          }
                           disabled={isAlreadyShared}
                           className="mt-1 w-5 h-5 rounded border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-white">{institution.name}</span>
+                            <span className="font-semibold text-white">
+                              {institution.name}
+                            </span>
                             {isAlreadyShared && (
                               <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-500/30">
                                 Already Shared
                               </span>
                             )}
                           </div>
-                          <div className="text-sm text-gray-400 mt-1">{institution.description}</div>
-                          <div className="text-xs text-gray-500 mt-2 font-mono">{institution.account}</div>
+                          <div className="text-sm text-gray-400 mt-1">
+                            {institution.description}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-2 font-mono">
+                            {institution.account}
+                          </div>
                         </div>
                       </label>
                     );
@@ -412,7 +490,12 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
             {/* Modal Footer */}
             <div className="p-6 border-t border-gray-700 flex items-center justify-between">
               <p className="text-sm text-gray-400">
-                {selectedInstitutions.size - alreadySharedAddresses.size} new institution{selectedInstitutions.size - alreadySharedAddresses.size !== 1 ? 's' : ''} selected
+                {selectedInstitutions.size - alreadySharedAddresses.size} new
+                institution
+                {selectedInstitutions.size - alreadySharedAddresses.size !== 1
+                  ? 's'
+                  : ''}{' '}
+                selected
               </p>
               <div className="flex gap-3">
                 <button
@@ -423,7 +506,11 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                 </button>
                 <button
                   onClick={handleShareConfirm}
-                  disabled={selectedInstitutions.size === 0 || sharing || selectedInstitutions.size === alreadySharedAddresses.size}
+                  disabled={
+                    selectedInstitutions.size === 0 ||
+                    sharing ||
+                    selectedInstitutions.size === alreadySharedAddresses.size
+                  }
                   className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold rounded-lg transition-all flex items-center gap-2"
                 >
                   {sharing ? (
@@ -434,8 +521,18 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                   ) : (
                     <>
                       <span>Share</span>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
                       </svg>
                     </>
                   )}
@@ -460,14 +557,27 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                   onClick={() => setRevokeModalOpen(false)}
                   className="text-gray-400 hover:text-white transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
               {selectedFile && (
                 <p className="text-sm text-gray-400 mt-2">
-                  Revoking access for: <span className="text-red-400 font-medium">{selectedFile.title}</span>
+                  Revoking access for:{' '}
+                  <span className="text-red-400 font-medium">
+                    {selectedFile.title}
+                  </span>
                 </p>
               )}
             </div>
@@ -477,7 +587,9 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div>
-                  <span className="ml-3 text-gray-400">Loading shared institutions...</span>
+                  <span className="ml-3 text-gray-400">
+                    Loading shared institutions...
+                  </span>
                 </div>
               ) : sharedInstitutions.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
@@ -488,18 +600,28 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                   {sharedInstitutions.map((institution, idx) => (
                     <label
                       key={idx}
-                      className="flex items-start gap-3 p-4 bg-red-900/20 hover:bg-red-900/30 rounded-lg border border-red-600/50 cursor-pointer transition-all"
+                      className="flex items-start gap-3 p-4  hover:bg-red-900/30 rounded-lg border-transparent border-1 hover:border-1 hover:border-red-600/50 cursor-pointer"
                     >
                       <input
                         type="checkbox"
-                        checked={selectedInstitutions.has(institution.account.toLowerCase())}
-                        onChange={() => handleInstitutionToggle(institution.account)}
+                        checked={selectedInstitutions.has(
+                          institution.account.toLowerCase()
+                        )}
+                        onChange={() =>
+                          handleInstitutionToggle(institution.account)
+                        }
                         className="mt-1 w-5 h-5 rounded border-red-600 text-red-600 focus:ring-2 focus:ring-red-500 focus:ring-offset-0 focus:ring-offset-gray-800"
                       />
                       <div className="flex-1">
-                        <div className="font-semibold text-white">{institution.name}</div>
-                        <div className="text-sm text-gray-400 mt-1">{institution.description}</div>
-                        <div className="text-xs text-gray-500 mt-2 font-mono">{institution.account}</div>
+                        <div className="font-semibold text-white">
+                          {institution.name}
+                        </div>
+                        <div className="text-sm text-gray-400 mt-1">
+                          {institution.description}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-2 font-mono">
+                          {institution.account}
+                        </div>
                       </div>
                     </label>
                   ))}
@@ -510,7 +632,9 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
             {/* Modal Footer */}
             <div className="p-6 border-t border-gray-700 flex items-center justify-between">
               <p className="text-sm text-gray-400">
-                {selectedInstitutions.size} institution{selectedInstitutions.size !== 1 ? 's' : ''} selected for revocation
+                {selectedInstitutions.size} institution
+                {selectedInstitutions.size !== 1 ? 's' : ''} selected for
+                revocation
               </p>
               <div className="flex gap-3">
                 <button
@@ -532,8 +656,18 @@ export function FileGrid({ files }: { files: FileRecord[] }) {
                   ) : (
                     <>
                       <span>Revoke Access</span>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                        />
                       </svg>
                     </>
                   )}
@@ -554,17 +688,9 @@ function EmptyState({ message }: { message: string }) {
         📁
       </div>
       <p className="text-gray-400 text-lg font-medium">{message}</p>
-      <p className="text-gray-500 text-sm mt-2">Upload your first record to get started</p>
+      <p className="text-gray-500 text-sm mt-2">
+        Upload your first record to get started
+      </p>
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
