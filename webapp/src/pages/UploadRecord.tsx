@@ -91,9 +91,7 @@ export default function UploadRecord() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-          <div className="bg-gradient-to-br rounded-xl shadow-lg">
-            📤
-          </div>
+          <div className="bg-gradient-to-br rounded-xl shadow-lg">📤</div>
           Upload New Record
         </h1>
       </div>
@@ -105,7 +103,7 @@ export default function UploadRecord() {
         {/* Title Input */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-          <FileText size={16} className="text-blue-400" />
+            <FileText size={16} className="text-blue-400" />
             Document Title
           </label>
           <input
@@ -123,7 +121,7 @@ export default function UploadRecord() {
         {/* Description Textarea */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-          <AlignLeft size={16} className="text-blue-400" />
+            <AlignLeft size={16} className="text-blue-400" />
             Description
           </label>
           <textarea
@@ -141,7 +139,7 @@ export default function UploadRecord() {
         {/* Category Select */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-          <Tag size={16} className="text-blue-400" />
+            <Tag size={16} className="text-blue-400" />
             Category
           </label>
           <select
@@ -170,7 +168,7 @@ export default function UploadRecord() {
         {/* File Input */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-          <Upload size={16} className="text-blue-400" />
+            <Upload size={16} className="text-blue-400" />
             File Upload
           </label>
           <input

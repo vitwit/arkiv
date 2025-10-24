@@ -17,6 +17,7 @@ import {
   getFileDetails,
 } from './lib/dcaQuery';
 import About from './pages/About';
+import SelectRole from './components/ui/SelectRole';
 
 interface FileRecord {
   cid: string;
@@ -31,7 +32,7 @@ interface FileRecord {
   id?: string;
 }
 
-function Dashboard() {
+function Dashboard({ role }: { role: string }) {
   const { account } = useWalletStore();
   const [myFiles, setMyFiles] = useState<FileRecord[]>([]);
   const [sharedFiles, setSharedFiles] = useState<FileRecord[]>([]);
@@ -180,74 +181,114 @@ function Dashboard() {
 
   return (
     <>
-      <QuickActions role="user" />
+      <QuickActions role={role} />
 
-      <section className="mb-16">
-        <h2 className="text-2xl font-semibold mb-6">📁 My Files</h2>
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
-            <span className="ml-3 text-gray-400">Loading your files...</span>
-          </div>
-        ) : myFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-gray-700/50 rounded-2xl bg-gray-800/20 backdrop-blur-sm">
-            <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mb-4 text-4xl">
-              📁
+      {role == 'user' ? (
+        <section className="mb-16">
+          <h2 className="text-2xl font-semibold mb-6">📁 My Files</h2>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+              <span className="ml-3 text-gray-400">Loading your files...</span>
             </div>
-            <p className="text-gray-400 text-lg font-medium">No files found</p>
-            <p className="text-gray-500 text-sm mt-2">
-              Upload your first record to get started
-            </p>
-          </div>
-        ) : (
-          <FileGrid files={myFiles} />
-        )}
-      </section>
+          ) : myFiles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-gray-700/50 rounded-2xl bg-gray-800/20 backdrop-blur-sm">
+              <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mb-4 text-4xl">
+                📁
+              </div>
+              <p className="text-gray-400 text-lg font-medium">
+                No files found
+              </p>
+              <p className="text-gray-500 text-sm mt-2">
+                Upload your first record to get started
+              </p>
+            </div>
+          ) : (
+            <FileGrid files={myFiles} />
+          )}
+        </section>
+      ) : null}
 
-      <section>
-        <h2 className="text-2xl font-semibold mb-6">🔗 Shared With Me</h2>
-        {loadingShared ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
-            <span className="ml-3 text-gray-400">Loading shared files...</span>
-          </div>
-        ) : sharedFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-gray-700/50 rounded-2xl bg-gray-800/20 backdrop-blur-sm">
-            <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mb-4 text-4xl">
-              🔗
+      {role == 'institution' ? (
+        <section>
+          <h2 className="text-2xl font-semibold mb-6">🔗 Shared With Me</h2>
+          {loadingShared ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+              <span className="ml-3 text-gray-400">
+                Loading shared files...
+              </span>
             </div>
-            <p className="text-gray-400 text-lg font-medium">No shared files</p>
-            <p className="text-gray-500 text-sm mt-2">
-              Files shared with you will appear here
-            </p>
-          </div>
-        ) : (
-          <FileGrid files={sharedFiles} isSharedWithMe={true} />
-        )}
-      </section>
+          ) : sharedFiles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-gray-700/50 rounded-2xl bg-gray-800/20 backdrop-blur-sm">
+              <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mb-4 text-4xl">
+                🔗
+              </div>
+              <p className="text-gray-400 text-lg font-medium">
+                No shared files
+              </p>
+              <p className="text-gray-500 text-sm mt-2">
+                Files shared with you will appear here
+              </p>
+            </div>
+          ) : (
+            <FileGrid files={sharedFiles} isSharedWithMe={true} />
+          )}
+        </section>
+      ) : null}
     </>
   );
 }
 
 export default function DashboardPage() {
   const { account } = useWalletStore();
+  const [role, setRole] = useState(''); // 'user' | 'institution
+
+  if (!role) {
+    return (
+      <SelectRole
+        setRole={(role: string) => {
+          setRole(role);
+        }}
+        role={role}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <NavBar />
-
+      <NavBar
+        resetRole={() => {
+          setRole('');
+        }}
+      />
       {account ? (
         <main className="px-6 py-10">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/upload" element={<UploadRecord />} />
-            <Route path="/records" element={<Records />} />
-            <Route path="/user-shared" element={<SharedRecords />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route
-              path="/register-institution"
-              element={<RegisterInstitution />}
-            />
+            {/* Common routes */}
+            <Route path="/" element={<Dashboard role={role} />} />
+            <Route path="/profile" element={<Profile role={role} />} />
             <Route path="/about" element={<About />} />
+
+            {/* Role-based routes */}
+            {role === 'user' && (
+              <>
+                <Route path="/upload" element={<UploadRecord />} />
+                <Route path="/records" element={<Records />} />
+              </>
+            )}
+
+            {role === 'institution' && (
+              <>
+                <Route path="/user-shared" element={<SharedRecords />} />
+                <Route
+                  path="/register-institution"
+                  element={<RegisterInstitution />}
+                />
+              </>
+            )}
+
+            {/* Catch all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

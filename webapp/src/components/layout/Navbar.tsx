@@ -1,15 +1,15 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useWalletStore } from "../../store/walletStore";
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useWalletStore } from '../../store/walletStore';
 import {
   WalletIcon,
   ChevronDownIcon,
   ArrowLeftOnRectangleIcon,
   InformationCircleIcon,
-} from "@heroicons/react/24/outline";
+} from '@heroicons/react/24/outline';
 import { ethers } from 'ethers';
 
-export default function NavBar() {
+export default function NavBar({ resetRole }: { resetRole: () => void }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { account, ensName, setWallet, resetWallet } = useWalletStore();
   const navigate = useNavigate();
@@ -34,13 +34,13 @@ export default function NavBar() {
   };
 
   const shortenAddress = (addr: string) =>
-    addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
+    addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : '';
 
   return (
     <nav className="w-full bg-gray-800 px-6 py-4 flex items-center justify-between text-white shadow-md">
       {/* Left: App Name */}
       <div className="text-4xl font-bold">
-        <Link to='/'>Arkiv</Link>
+        <Link to="/">Arkiv</Link>
       </div>
 
       {/* Right: About & Wallet */}
@@ -73,7 +73,9 @@ export default function NavBar() {
                 <WalletIcon className="w-5 h-5" />
                 {ensName || shortenAddress(account)}
                 <ChevronDownIcon
-                  className={`w-4 h-4 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+                  className={`w-4 h-4 transition-transform ${
+                    dropdownOpen ? 'rotate-180' : ''
+                  }`}
                 />
               </button>
 
@@ -82,6 +84,7 @@ export default function NavBar() {
                 <div className="absolute right-0 mt-2 w-48 bg-white text-gray-800 rounded-lg shadow-lg z-10">
                   <button
                     onClick={() => {
+                      resetRole();
                       resetWallet();
                       setDropdownOpen(false);
                     }}
