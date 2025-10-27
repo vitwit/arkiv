@@ -7,44 +7,41 @@ import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 /**
  * @title Arkiv
  * @notice Stores IPFS CID + metadata + AES-256 (encrypted) key split into four euint64 words per recipient.
- *         Uses Zama FHE primitives: externalEuint64, FHE.fromExternal, FHE.allow, etc.
- *
- * Design decisions:
- * - AES-256 key is stored as 4 x 64-bit encrypted words (wordIndex 0..3).
- * - Owner uploads all 4 words for each recipient in a single transaction via storeKeyWordsBatch.
- * - Recipients read their four encrypted words via getKeyWords and use node re-encryption (fhevmjs) to decrypt locally.
+ *         Uses Zama FHE primitives optionally (kept), and also supports storing wrapped key blobs (bytes)
+ *         which are easier to produce client-side initially.
  */
 contract Arkiv is SepoliaConfig {
-    uint256 private constant AES256_WORDS = 4; // 4 * 64 = 256 bits
-
     struct FileMeta {
         address owner;
         string cid;
         string metadata;
         address[] recipients;
         mapping(address => bool) canAccess;
-        // track how many words stored for a recipient (should be 4 for AES-256)
-        mapping(address => uint256) keyWords;
-        // encrypted key words: recipient => (index => euint64)
-        mapping(address => mapping(uint256 => euint64)) encKey;
         bool exists;
     }
 
     mapping(bytes32 => FileMeta) private _files;
+    mapping(address => bytes32[]) private _ownerFiles;
+    // Stores all uploaded file IDs (public so frontend can access directly)
+    bytes32[] public allFiles;
 
     struct Institution {
-        string name; // Institution name
-        string description; // Short description
-        string contactInfo; // e.g., email, phone, website
-        address account; // Ethereum address of the institution
-        bool exists; // Flag to check if registered
+        string name;
+        string description;
+        string contactInfo;
+        address account;
+        bool exists;
     }
 
     mapping(address => Institution) public institutions;
     address[] public institutionList;
 
     event InstitutionRegistered(address indexed account, string name);
+    event FileCreated(bytes32 indexed fileId, address indexed owner, string cid, string metadata);
+    event AccessGranted(bytes32 indexed fileId, address indexed grantee);
+    event AccessRevoked(bytes32 indexed fileId, address indexed grantee);
 
+    // ---------------- Institutions -----------------------------------------
     function registerInstitution(
         string calldata name,
         string calldata description,
@@ -69,20 +66,13 @@ contract Arkiv is SepoliaConfig {
 
     function listInstitutions() external view returns (Institution[] memory) {
         Institution[] memory list = new Institution[](institutionList.length);
-        for (uint i = 0; i < institutionList.length; i++) {
+        for (uint256 i = 0; i < institutionList.length; i++) {
             list[i] = institutions[institutionList[i]];
         }
         return list;
     }
 
-    // Events
-    event FileCreated(bytes32 indexed fileId, address indexed owner, string cid, string metadata);
-    event AccessGranted(bytes32 indexed fileId, address indexed grantee);
-    event AccessRevoked(bytes32 indexed fileId, address indexed grantee);
-    event KeyWordsStored(bytes32 indexed fileId, address indexed grantee, uint256 wordsStored);
-
-    // --- File lifecycle -----------------------------------------------------
-
+    // ---------------- Files ------------------------------------------------
     function createFile(bytes32 fileId, string calldata cid, string calldata metadata) external {
         require(!_files[fileId].exists, "File: already exists");
         FileMeta storage f = _files[fileId];
@@ -90,6 +80,8 @@ contract Arkiv is SepoliaConfig {
         f.cid = cid;
         f.metadata = metadata;
         f.exists = true;
+        _ownerFiles[msg.sender].push(fileId);
+        allFiles.push(fileId);
         emit FileCreated(fileId, msg.sender, cid, metadata);
     }
 
@@ -103,7 +95,13 @@ contract Arkiv is SepoliaConfig {
         return _files[fileId].metadata;
     }
 
-    // --- Access control -----------------------------------------------------
+    function getFilesByOwner(address owner) external view returns (bytes32[] memory) {
+        return _ownerFiles[owner];
+    }
+
+    function getAllFiles() external view returns (bytes32[] memory) {
+        return allFiles;
+    }
 
     modifier onlyFileOwner(bytes32 fileId) {
         require(_files[fileId].exists, "File: not found");
@@ -125,97 +123,55 @@ contract Arkiv is SepoliaConfig {
         require(f.canAccess[grantee], "Not granted");
         f.canAccess[grantee] = false;
         emit AccessRevoked(fileId, grantee);
-
-        // Optionally clear stored ciphertexts for gas cost reasons (owner pays gas)
-        uint256 words = f.keyWords[grantee];
-        if (words > 0) {
-            for (uint256 i = 0; i < words; i++) {
-                f.encKey[grantee][i] = FHE.asEuint64(0);
-            }
-            f.keyWords[grantee] = 0;
-        }
     }
 
+    // --- Listing recipients (only active / revoked) ------------------------
     function listRecipients(bytes32 fileId) external view returns (address[] memory) {
-        require(_files[fileId].exists, "File: not found");
-        return _files[fileId].recipients;
+        FileMeta storage f = _files[fileId];
+        require(f.exists, "File: not found");
+
+        uint256 total = f.recipients.length;
+        uint256 count = 0;
+        for (uint256 i = 0; i < total; i++) {
+            if (f.canAccess[f.recipients[i]]) count++;
+        }
+
+        address[] memory activeRecipients = new address[](count);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < total; i++) {
+            address r = f.recipients[i];
+            if (f.canAccess[r]) {
+                activeRecipients[idx] = r;
+                idx++;
+            }
+        }
+        return activeRecipients;
+    }
+
+    function listRevokedRecipients(bytes32 fileId) external view returns (address[] memory) {
+        FileMeta storage f = _files[fileId];
+        require(f.exists, "File: not found");
+
+        uint256 total = f.recipients.length;
+        uint256 count = 0;
+        for (uint256 i = 0; i < total; i++) {
+            if (!f.canAccess[f.recipients[i]]) count++;
+        }
+
+        address[] memory revokedRecipients = new address[](count);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < total; i++) {
+            address r = f.recipients[i];
+            if (!f.canAccess[r]) {
+                revokedRecipients[idx] = r;
+                idx++;
+            }
+        }
+        return revokedRecipients;
     }
 
     function hasAccess(bytes32 fileId, address account) external view returns (bool) {
         require(_files[fileId].exists, "File: not found");
         return _files[fileId].canAccess[account];
-    }
-
-    // --- AES-256 key upload (batch) ----------------------------------------
-
-    /**
-     * @dev Store AES-256 key for a grantee as four externalEuint64 entries.
-     * @param fileId The file identifier.
-     * @param grantee Recipient address.
-     * @param encWords Array of 4 externalEuint64 encrypted words.
-     * @param inputProofs Array of 4 proofs corresponding to each encWord.
-     *
-     * Requirements:
-     * - caller must be file owner
-     * - encWords.length == AES256_WORDS
-     * - inputProofs.length == AES256_WORDS
-     */
-    function storeKeyWordsBatch(
-        bytes32 fileId,
-        address grantee,
-        externalEuint64[] calldata encWords,
-        bytes[] calldata inputProofs
-    ) external onlyFileOwner(fileId) {
-        require(encWords.length == AES256_WORDS, "Must supply 4 encrypted words");
-        require(inputProofs.length == AES256_WORDS, "Must supply 4 proofs");
-
-        FileMeta storage f = _files[fileId];
-
-        // Ensure ACL
-        if (!f.canAccess[grantee]) {
-            grantAccess(fileId, grantee);
-        }
-
-        // Materialize and persist each encrypted word
-        for (uint256 i = 0; i < AES256_WORDS; i++) {
-            euint64 word = FHE.fromExternal(encWords[i], inputProofs[i]);
-            f.encKey[grantee][i] = word;
-            // grant long-lived read permission to grantee for this ciphertext
-            FHE.allow(word, grantee);
-        }
-
-        // Track number of words (should be 4)
-        f.keyWords[grantee] = AES256_WORDS;
-
-        emit KeyWordsStored(fileId, grantee, AES256_WORDS);
-    }
-
-    function keyWordCount(bytes32 fileId, address account) external view returns (uint256) {
-        require(_files[fileId].exists, "File: not found");
-        return _files[fileId].keyWords[account];
-    }
-
-    /**
-     * @dev Return the encrypted word at index for the caller (must have ACL).
-     *      We return euint64 single values to avoid large dynamic returns of custom types.
-     */
-    function getKeyWord(bytes32 fileId, uint256 wordIndex) external view returns (euint64) {
-        require(_files[fileId].exists, "File: not found");
-        require(_files[fileId].canAccess[msg.sender], "Not authorized");
-        require(wordIndex < AES256_WORDS, "wordIndex out of range");
-        return _files[fileId].encKey[msg.sender][wordIndex];
-    }
-
-    /**
-     * @dev Owner helper: read a stored encrypted word for any recipient (owner only).
-     */
-    function getKeyWordFor(
-        bytes32 fileId,
-        address account,
-        uint256 wordIndex
-    ) external view onlyFileOwner(fileId) returns (euint64) {
-        require(_files[fileId].exists, "File: not found");
-        require(wordIndex < AES256_WORDS, "wordIndex out of range");
-        return _files[fileId].encKey[account][wordIndex];
     }
 }

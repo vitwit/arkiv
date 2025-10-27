@@ -21,22 +21,51 @@ import type {
   TypedLogDescription,
   TypedListener,
   TypedContractMethod,
-} from "../common";
+} from "./common";
+
+export declare namespace Arkiv {
+  export type InstitutionStruct = {
+    name: string;
+    description: string;
+    contactInfo: string;
+    account: AddressLike;
+    exists: boolean;
+  };
+
+  export type InstitutionStructOutput = [
+    name: string,
+    description: string,
+    contactInfo: string,
+    account: string,
+    exists: boolean
+  ] & {
+    name: string;
+    description: string;
+    contactInfo: string;
+    account: string;
+    exists: boolean;
+  };
+}
 
 export interface ArkivInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "allFiles"
       | "createFile"
+      | "getAllFiles"
       | "getFileCid"
       | "getFileMetadata"
-      | "getKeyWord"
-      | "getKeyWordFor"
+      | "getFilesByOwner"
+      | "getInstitution"
       | "grantAccess"
       | "hasAccess"
-      | "keyWordCount"
+      | "institutionList"
+      | "institutions"
+      | "listInstitutions"
       | "listRecipients"
+      | "listRevokedRecipients"
+      | "registerInstitution"
       | "revokeAccess"
-      | "storeKeyWordsBatch"
   ): FunctionFragment;
 
   getEvent(
@@ -44,12 +73,20 @@ export interface ArkivInterface extends Interface {
       | "AccessGranted"
       | "AccessRevoked"
       | "FileCreated"
-      | "KeyWordsStored"
+      | "InstitutionRegistered"
   ): EventFragment;
 
   encodeFunctionData(
+    functionFragment: "allFiles",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "createFile",
     values: [BytesLike, string, string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getAllFiles",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "getFileCid",
@@ -60,12 +97,12 @@ export interface ArkivInterface extends Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "getKeyWord",
-    values: [BytesLike, BigNumberish]
+    functionFragment: "getFilesByOwner",
+    values: [AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "getKeyWordFor",
-    values: [BytesLike, AddressLike, BigNumberish]
+    functionFragment: "getInstitution",
+    values: [AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "grantAccess",
@@ -76,31 +113,51 @@ export interface ArkivInterface extends Interface {
     values: [BytesLike, AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "keyWordCount",
-    values: [BytesLike, AddressLike]
+    functionFragment: "institutionList",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "institutions",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "listInstitutions",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "listRecipients",
     values: [BytesLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "listRevokedRecipients",
+    values: [BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "registerInstitution",
+    values: [string, string, string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "revokeAccess",
     values: [BytesLike, AddressLike]
   ): string;
-  encodeFunctionData(
-    functionFragment: "storeKeyWordsBatch",
-    values: [BytesLike, AddressLike, BytesLike[], BytesLike[]]
-  ): string;
 
+  decodeFunctionResult(functionFragment: "allFiles", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "createFile", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getAllFiles",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "getFileCid", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "getFileMetadata",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "getKeyWord", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "getKeyWordFor",
+    functionFragment: "getFilesByOwner",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getInstitution",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -109,7 +166,15 @@ export interface ArkivInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "hasAccess", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "keyWordCount",
+    functionFragment: "institutionList",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "institutions",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "listInstitutions",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -117,11 +182,15 @@ export interface ArkivInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "revokeAccess",
+    functionFragment: "listRevokedRecipients",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "storeKeyWordsBatch",
+    functionFragment: "registerInstitution",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "revokeAccess",
     data: BytesLike
   ): Result;
 }
@@ -177,21 +246,12 @@ export namespace FileCreatedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace KeyWordsStoredEvent {
-  export type InputTuple = [
-    fileId: BytesLike,
-    grantee: AddressLike,
-    wordsStored: BigNumberish
-  ];
-  export type OutputTuple = [
-    fileId: string,
-    grantee: string,
-    wordsStored: bigint
-  ];
+export namespace InstitutionRegisteredEvent {
+  export type InputTuple = [account: AddressLike, name: string];
+  export type OutputTuple = [account: string, name: string];
   export interface OutputObject {
-    fileId: string;
-    grantee: string;
-    wordsStored: bigint;
+    account: string;
+    name: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -242,25 +302,29 @@ export interface Arkiv extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  allFiles: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
+
   createFile: TypedContractMethod<
     [fileId: BytesLike, cid: string, metadata: string],
     [void],
     "nonpayable"
   >;
 
+  getAllFiles: TypedContractMethod<[], [string[]], "view">;
+
   getFileCid: TypedContractMethod<[fileId: BytesLike], [string], "view">;
 
   getFileMetadata: TypedContractMethod<[fileId: BytesLike], [string], "view">;
 
-  getKeyWord: TypedContractMethod<
-    [fileId: BytesLike, wordIndex: BigNumberish],
-    [string],
+  getFilesByOwner: TypedContractMethod<
+    [owner: AddressLike],
+    [string[]],
     "view"
   >;
 
-  getKeyWordFor: TypedContractMethod<
-    [fileId: BytesLike, account: AddressLike, wordIndex: BigNumberish],
-    [string],
+  getInstitution: TypedContractMethod<
+    [account: AddressLike],
+    [Arkiv.InstitutionStructOutput],
     "view"
   >;
 
@@ -276,27 +340,44 @@ export interface Arkiv extends BaseContract {
     "view"
   >;
 
-  keyWordCount: TypedContractMethod<
-    [fileId: BytesLike, account: AddressLike],
-    [bigint],
+  institutionList: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
+
+  institutions: TypedContractMethod<
+    [arg0: AddressLike],
+    [
+      [string, string, string, string, boolean] & {
+        name: string;
+        description: string;
+        contactInfo: string;
+        account: string;
+        exists: boolean;
+      }
+    ],
+    "view"
+  >;
+
+  listInstitutions: TypedContractMethod<
+    [],
+    [Arkiv.InstitutionStructOutput[]],
     "view"
   >;
 
   listRecipients: TypedContractMethod<[fileId: BytesLike], [string[]], "view">;
 
-  revokeAccess: TypedContractMethod<
-    [fileId: BytesLike, grantee: AddressLike],
+  listRevokedRecipients: TypedContractMethod<
+    [fileId: BytesLike],
+    [string[]],
+    "view"
+  >;
+
+  registerInstitution: TypedContractMethod<
+    [name: string, description: string, contactInfo: string],
     [void],
     "nonpayable"
   >;
 
-  storeKeyWordsBatch: TypedContractMethod<
-    [
-      fileId: BytesLike,
-      grantee: AddressLike,
-      encWords: BytesLike[],
-      inputProofs: BytesLike[]
-    ],
+  revokeAccess: TypedContractMethod<
+    [fileId: BytesLike, grantee: AddressLike],
     [void],
     "nonpayable"
   >;
@@ -306,6 +387,9 @@ export interface Arkiv extends BaseContract {
   ): T;
 
   getFunction(
+    nameOrSignature: "allFiles"
+  ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
+  getFunction(
     nameOrSignature: "createFile"
   ): TypedContractMethod<
     [fileId: BytesLike, cid: string, metadata: string],
@@ -313,23 +397,22 @@ export interface Arkiv extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "getAllFiles"
+  ): TypedContractMethod<[], [string[]], "view">;
+  getFunction(
     nameOrSignature: "getFileCid"
   ): TypedContractMethod<[fileId: BytesLike], [string], "view">;
   getFunction(
     nameOrSignature: "getFileMetadata"
   ): TypedContractMethod<[fileId: BytesLike], [string], "view">;
   getFunction(
-    nameOrSignature: "getKeyWord"
-  ): TypedContractMethod<
-    [fileId: BytesLike, wordIndex: BigNumberish],
-    [string],
-    "view"
-  >;
+    nameOrSignature: "getFilesByOwner"
+  ): TypedContractMethod<[owner: AddressLike], [string[]], "view">;
   getFunction(
-    nameOrSignature: "getKeyWordFor"
+    nameOrSignature: "getInstitution"
   ): TypedContractMethod<
-    [fileId: BytesLike, account: AddressLike, wordIndex: BigNumberish],
-    [string],
+    [account: AddressLike],
+    [Arkiv.InstitutionStructOutput],
     "view"
   >;
   getFunction(
@@ -347,31 +430,43 @@ export interface Arkiv extends BaseContract {
     "view"
   >;
   getFunction(
-    nameOrSignature: "keyWordCount"
+    nameOrSignature: "institutionList"
+  ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
+  getFunction(
+    nameOrSignature: "institutions"
   ): TypedContractMethod<
-    [fileId: BytesLike, account: AddressLike],
-    [bigint],
+    [arg0: AddressLike],
+    [
+      [string, string, string, string, boolean] & {
+        name: string;
+        description: string;
+        contactInfo: string;
+        account: string;
+        exists: boolean;
+      }
+    ],
     "view"
   >;
+  getFunction(
+    nameOrSignature: "listInstitutions"
+  ): TypedContractMethod<[], [Arkiv.InstitutionStructOutput[]], "view">;
   getFunction(
     nameOrSignature: "listRecipients"
   ): TypedContractMethod<[fileId: BytesLike], [string[]], "view">;
   getFunction(
-    nameOrSignature: "revokeAccess"
+    nameOrSignature: "listRevokedRecipients"
+  ): TypedContractMethod<[fileId: BytesLike], [string[]], "view">;
+  getFunction(
+    nameOrSignature: "registerInstitution"
   ): TypedContractMethod<
-    [fileId: BytesLike, grantee: AddressLike],
+    [name: string, description: string, contactInfo: string],
     [void],
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "storeKeyWordsBatch"
+    nameOrSignature: "revokeAccess"
   ): TypedContractMethod<
-    [
-      fileId: BytesLike,
-      grantee: AddressLike,
-      encWords: BytesLike[],
-      inputProofs: BytesLike[]
-    ],
+    [fileId: BytesLike, grantee: AddressLike],
     [void],
     "nonpayable"
   >;
@@ -398,11 +493,11 @@ export interface Arkiv extends BaseContract {
     FileCreatedEvent.OutputObject
   >;
   getEvent(
-    key: "KeyWordsStored"
+    key: "InstitutionRegistered"
   ): TypedContractEvent<
-    KeyWordsStoredEvent.InputTuple,
-    KeyWordsStoredEvent.OutputTuple,
-    KeyWordsStoredEvent.OutputObject
+    InstitutionRegisteredEvent.InputTuple,
+    InstitutionRegisteredEvent.OutputTuple,
+    InstitutionRegisteredEvent.OutputObject
   >;
 
   filters: {
@@ -439,15 +534,15 @@ export interface Arkiv extends BaseContract {
       FileCreatedEvent.OutputObject
     >;
 
-    "KeyWordsStored(bytes32,address,uint256)": TypedContractEvent<
-      KeyWordsStoredEvent.InputTuple,
-      KeyWordsStoredEvent.OutputTuple,
-      KeyWordsStoredEvent.OutputObject
+    "InstitutionRegistered(address,string)": TypedContractEvent<
+      InstitutionRegisteredEvent.InputTuple,
+      InstitutionRegisteredEvent.OutputTuple,
+      InstitutionRegisteredEvent.OutputObject
     >;
-    KeyWordsStored: TypedContractEvent<
-      KeyWordsStoredEvent.InputTuple,
-      KeyWordsStoredEvent.OutputTuple,
-      KeyWordsStoredEvent.OutputObject
+    InstitutionRegistered: TypedContractEvent<
+      InstitutionRegisteredEvent.InputTuple,
+      InstitutionRegisteredEvent.OutputTuple,
+      InstitutionRegisteredEvent.OutputObject
     >;
   };
 }

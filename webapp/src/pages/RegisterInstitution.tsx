@@ -1,83 +1,89 @@
 import { useState } from "react";
-import NavBar from "../components/layout/Navbar";
+import { useNavigate } from "react-router-dom";
+import { registerInstitution } from "../lib/dcaTx";
+import { useSnackbar } from "../hooks/useSnackbar";
 
-export default function RegisterInstitutionPage() {
-    const [name, setName] = useState("");
-    const [description, setDescription] = useState("");
-    const [contactInfo, setContactInfo] = useState("");
-    const [submitting, setSubmitting] = useState(false);
+export default function RegisterInstitution() {
+  const navigate = useNavigate();
+  const { showSnackbar } = useSnackbar();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    contactInfo: "",
+  });
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSubmitting(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
-        try {
-            // TODO: Send to smart contract
-            // Example: await contract.registerInstitution({ name, description, contactInfo, account: userAddress })
+    try {
+      const result = await registerInstitution(
+        formData.name,
+        formData.description,
+        formData.contactInfo
+      );
+      console.log("Institution registered:", result.hash);
+      showSnackbar("Registered successfully", "tx-success", result.hash);
+      navigate("/");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error("Error registering:", error);
+      showSnackbar(`failed to register ${error.message || JSON.stringify(error)}`, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            alert("Institution registration submitted!");
-            setName("");
-            setDescription("");
-            setContactInfo("");
-        } catch (err) {
-            console.error(err);
-            alert("Registration failed!");
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-700 text-white">
-            <NavBar />
-            <main className="max-w-xl mx-auto p-6">
-                <h2 className="text-2xl font-semibold mb-6">Register as Institution</h2>
-                <form
-                    onSubmit={handleSubmit}
-                    className="bg-gray-800 bg-opacity-70 p-6 rounded-2xl shadow-md flex flex-col gap-4"
-                >
-                    <label className="flex flex-col">
-                        <span className="mb-1">Institution Name</span>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            required
-                            className="px-3 py-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        />
-                    </label>
-
-                    <label className="flex flex-col">
-                        <span className="mb-1">Description</span>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            required
-                            className="px-3 py-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        />
-                    </label>
-
-                    <label className="flex flex-col">
-                        <span className="mb-1">Contact Info</span>
-                        <input
-                            type="text"
-                            value={contactInfo}
-                            onChange={(e) => setContactInfo(e.target.value)}
-                            placeholder="Email, phone, website"
-                            required
-                            className="px-3 py-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        />
-                    </label>
-
-                    <button
-                        type="submit"
-                        disabled={submitting}
-                        className="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold transition"
-                    >
-                        {submitting ? "Submitting..." : "Register"}
-                    </button>
-                </form>
-            </main>
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h1 className="text-3xl font-bold mb-8">🏢 Register as Institution</h1>
+      
+      <form onSubmit={handleSubmit} className="bg-gray-800 rounded-2xl p-8 space-y-6">
+        <div>
+          <label className="block text-sm font-medium mb-2">Institution Name</label>
+          <input
+            type="text"
+            required
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="e.g., City General Hospital"
+          />
         </div>
-    );
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Description</label>
+          <textarea
+            required
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            rows={4}
+            placeholder="Brief description of your institution..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Contact Information</label>
+          <input
+            type="text"
+            required
+            value={formData.contactInfo}
+            onChange={(e) => setFormData({ ...formData, contactInfo: e.target.value })}
+            className="w-full px-4 py-2 bg-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="Email, phone, or website"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 py-3 rounded-lg font-semibold transition"
+        >
+          {loading ? "Registering..." : "Register Institution"}
+        </button>
+      </form>
+    </div>
+  );
 }
