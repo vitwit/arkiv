@@ -10,13 +10,6 @@ const SelectRole = ({
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div>
-        <h2 className="text-3xl font-bold text-white mb-3 text-center">
-          Choose Registration Type
-        </h2>
-        <p className="text-slate-400 text-center mb-12">
-          Select how you want to register on Arkiv
-        </p>
-
         {/* Registration Cards */}
         <div className="flex gap-6 justify-center">
           {/* Institution Registration */}
