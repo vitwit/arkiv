@@ -149,8 +149,8 @@ Key idea: Users maintain complete control over who can access their medical reco
     - User and institution workflows
 
 You can jump directly to those docs:
-- Contract: [contract/Readme.md](./contracts/README.md)
-- Frontend app: [webapp/Readme.md](./app/README.md)
+- Contract: [contract/Readme.md](./contract/README.md)
+- Frontend app: [webapp/Readme.md](./webapp/README.md)
 
 ## License
 
