@@ -20,27 +20,90 @@ export default function UploadRecord() {
   });
 
   // Upload encrypted file to local IPFS
-  const uploadToIPFS = async (file: File): Promise<string> => {
-    const form = new FormData();
-    form.append('file', file, file.name);
+  // const uploadToIPFS = async (file: File): Promise<string> => {
+  //   const form = new FormData();
+  //   form.append('file', file, file.name);
 
-    const res = await fetch(
-      'http://localhost:5001/api/v0/add?wrap-with-directory=false',
-      {
-        method: 'POST',
-        body: form,
+  //   const res = await fetch(
+  //     'http://localhost:5001/api/v0/add?wrap-with-directory=false',
+  //     {
+  //       method: 'POST',
+  //       body: form,
+  //     }
+  //   );
+
+  //   if (!res.ok) {
+  //     const text = await res.text();
+  //     throw new Error(`IPFS upload failed: ${text}`);
+  //   }
+
+  //   const lines = (await res.text()).trim().split('\n');
+  //   const last = JSON.parse(lines[lines.length - 1]);
+  //   return last.Hash; // CID
+  // };
+
+  const uploadToIPFS = async(file: File): Promise<string> => {
+    const apiKey = 'b7c91487b1dc35474469';
+    const apiSecret =
+      'fc5ad07381525f28d07b4c33f0e556a452b82b764ab9894241df990cda98a8dd';
+  
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+  
+    // Optional metadata
+    const metadata = JSON.stringify({
+      name: file.name,
+      keyvalues: {
+        uploadedBy: 'Arkiv App',
+        timestamp: new Date().toISOString(),
+      },
+    });
+    formData.append('pinataMetadata', metadata);
+  
+    // Optional pinning options
+    const options = JSON.stringify({
+      cidVersion: 1,
+    });
+    formData.append('pinataOptions', options);
+  
+    try {
+      const response = await fetch(
+        'https://api.pinata.cloud/pinning/pinFileToIPFS',
+        {
+          method: 'POST',
+          headers: {
+            pinata_api_key: apiKey,
+            pinata_secret_api_key: apiSecret,
+          },
+          body: formData,
+        },
+      );
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Pinata file upload failed: ${errorText}`);
       }
-    );
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`IPFS upload failed: ${text}`);
+  
+      const result = await response.json();
+  
+      if (!result.IpfsHash) {
+        throw new Error('Pinata response missing IpfsHash.');
+      }
+  
+      console.log('✅ Uploaded file to IPFS via Pinata:', result.IpfsHash);
+      console.log(
+        `🔗 View: https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`,
+      );
+  
+      return result.IpfsHash;
+    } catch (error: any) {
+      const message =
+        error?.message || 'Unknown error occurred during upload to Pinata.';
+      console.error('❌ Upload error:', message);
+      throw new Error(message);
     }
-
-    const lines = (await res.text()).trim().split('\n');
-    const last = JSON.parse(lines[lines.length - 1]);
-    return last.Hash; // CID
-  };
+  }
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

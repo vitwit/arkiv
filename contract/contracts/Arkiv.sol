@@ -22,7 +22,6 @@ contract Arkiv is SepoliaConfig {
 
     mapping(bytes32 => FileMeta) private _files;
     mapping(address => bytes32[]) private _ownerFiles;
-    // Stores all uploaded file IDs (public so frontend can access directly)
     bytes32[] public allFiles;
 
     struct Institution {

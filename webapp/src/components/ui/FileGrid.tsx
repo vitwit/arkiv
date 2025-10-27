@@ -257,7 +257,7 @@ export function FileGrid({ files, isSharedWithMe }: { files: FileRecord[], isSha
       const aesKey = new Uint8Array(parsedMetadata.aesKey);
       const iv = new Uint8Array(parsedMetadata.iv);
 
-      const res = await fetch(`https://ipfs.io/ipfs/${cid}`);
+      const res = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`);
       const encryptedBuffer = new Uint8Array(await res.arrayBuffer());
 
       const decrypted = await decryptWithAesGcm(encryptedBuffer, iv, aesKey);
