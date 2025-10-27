@@ -1,6 +1,5 @@
 // lib/crypto.ts - Complete crypto utilities with ECIES support
 
-import { ethers } from 'ethers';
 
 /**
  * Generate a random AES-256 key (32 bytes)
@@ -76,8 +75,6 @@ export async function decryptWithAesGcm(
 export async function getPublicKeyFromWallet(address: string): Promise<string> {
   if (!window.ethereum) throw new Error('Wallet not found');
   
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const signer = await provider.getSigner();
 
   // Request encryption public key from MetaMask
   // This uses the eth_getEncryptionPublicKey RPC method

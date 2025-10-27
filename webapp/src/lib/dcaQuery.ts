@@ -75,23 +75,6 @@ export async function getFilesByOwner(owner: string): Promise<string[]> {
   }
 }
 
-// export async function listRecipients(fileId: string): Promise<string[]> {
-//   const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
-//   const contract = new ethers.Contract(
-//     contractAddress,
-//     ABI,
-//     provider
-//   ) as unknown as Arkiv;
-
-//   try {
-//     const recipients = await contract.listRecipients(fileId);
-//     return recipients;
-//   } catch (err) {
-//     console.log(err);
-//     return [];
-//   }
-// }
-
 export async function getAllFiles(): Promise<string[]> {
   const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
   const contract = new ethers.Contract(
@@ -168,49 +151,6 @@ export async function getFileDetails(
   }
 }
 
-export async function getRecipientKeyWordCount(
-  fileId: string,
-  recipient: string
-): Promise<number> {
-  const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
-  const contract = new ethers.Contract(
-    contractAddress,
-    ABI,
-    provider
-  ) as unknown as Arkiv;
-
-  try {
-    const count = await contract.keyWordCount(fileId, recipient);
-    return Number(count);
-  } catch (err) {
-    console.log(err);
-    throw err;
-  }
-}
-
-// export async function getKeyWords(
-//   fileId: string,
-//   account: string
-// ): Promise<string[]> {
-//   const provider = new ethers.JsonRpcProvider(import.meta.env.VITE_RPC_URL);
-//   const contract = new ethers.Contract(
-//     contractAddress,
-//     ABI,
-//     provider
-//   ) as unknown as Arkiv;
-
-//   try {
-//     const keyWords: string[] = [];
-//     for (let i = 0; i < 4; i++) {
-//       const word = await contract.getKeyWord(fileId, i);
-//       keyWords.push(word);
-//     }
-//     return keyWords;
-//   } catch (err) {
-//     console.error('Error fetching key words:', err);
-//     throw err;
-//   }
-// }
 
 export async function checkFileAccess(
   fileId: string,
@@ -280,30 +220,4 @@ export async function getInstitutionDetails(
   }
 }
 
-/**
- * Get wrapped (encrypted) AES key for current user
- */
-export async function getWrappedKey(fileId: string): Promise<string | null> {
-  if (!window.ethereum) throw new Error('Wallet not found');
-  
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const signer = await provider.getSigner();
-  
-  const contract = new ethers.Contract(
-    contractAddress,
-    ABI,
-    signer
-  ) as unknown as Arkiv;
 
-  try {
-    const wrappedKeyBytes = await contract.getWrappedKey(fileId);
-    
-    // Convert bytes back to string
-    const wrappedKeyJson = ethers.toUtf8String(wrappedKeyBytes);
-    
-    return wrappedKeyJson;
-  } catch (err) {
-    console.error('Error fetching wrapped key:', err);
-    return null;
-  }
-}

@@ -7,7 +7,7 @@ import {
 import { useEffect, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { useWalletStore } from '../../store/walletStore';
-import { getInstitutionDetails } from '../../lib/dcaQuery';
+import { getInstitutionDetails, type InstitutionDetails } from '../../lib/dcaQuery';
 
 interface Action {
   title: string;
@@ -19,11 +19,13 @@ export default function QuickActions({ role }: { role: string }) {
   let actions: Action[] = [];
   const { account } = useWalletStore();
 
-  const [institution, setInstitution] = useState(null);
+  const [institution, setInstitution] = useState<InstitutionDetails | null>(null);
 
   useEffect(() => {
     if (account && role == 'institution') {
-      getInstitutionDetails(account).then(setInstitution);
+      getInstitutionDetails(account).then((data) => {
+        setInstitution(data)
+      });
     }
   }, [account]);
 

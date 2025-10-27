@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useWalletStore } from '../store/walletStore';
-import { getInstitutionDetails } from '../lib/dcaQuery';
+import { getInstitutionDetails, type InstitutionDetails } from '../lib/dcaQuery';
 
 export default function Profile({role}:{role: string}) {
   const { account, ensName } = useWalletStore();
-  const [institution, setInstitution] = useState(null);
+  const [institution, setInstitution] = useState<InstitutionDetails | null>(null);
 
   useEffect(() => {
     if (account) {
-      getInstitutionDetails(account).then(setInstitution);
+      getInstitutionDetails(account).then((data) => {
+        setInstitution(data)
+      });
     }
   }, [account]);
 
