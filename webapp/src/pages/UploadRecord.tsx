@@ -19,29 +19,6 @@ export default function UploadRecord() {
     recipients: [] as string[], // Ethereum addresses
   });
 
-  // Upload encrypted file to local IPFS
-  // const uploadToIPFS = async (file: File): Promise<string> => {
-  //   const form = new FormData();
-  //   form.append('file', file, file.name);
-
-  //   const res = await fetch(
-  //     'http://localhost:5001/api/v0/add?wrap-with-directory=false',
-  //     {
-  //       method: 'POST',
-  //       body: form,
-  //     }
-  //   );
-
-  //   if (!res.ok) {
-  //     const text = await res.text();
-  //     throw new Error(`IPFS upload failed: ${text}`);
-  //   }
-
-  //   const lines = (await res.text()).trim().split('\n');
-  //   const last = JSON.parse(lines[lines.length - 1]);
-  //   return last.Hash; // CID
-  // };
-
   const uploadToIPFS = async(file: File): Promise<string> => {
     const apiKey = 'b7c91487b1dc35474469';
     const apiSecret =
